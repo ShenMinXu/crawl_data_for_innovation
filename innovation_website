@@ -1,0 +1,137 @@
+# -*- coding: utf-8 -*-
+import requests
+import re
+import xlrd
+from lxml import etree
+
+agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.112 Safari/537.36'
+
+headers = {
+    "User-Agent": agent,
+    ''"Host": "epub.sipo.gov.cn",
+    "Origin": "http://epub.sipo.gov.cn",
+    "Referer": "http://epub.sipo.gov.cn/index.action"
+}
+
+url_login = 'http://epub.sipo.gov.cn/patentoutline.action'
+postdata1 = {
+        "showType": "1",
+        "strWord": "",
+        "numSortMethod": "4",
+        "strLicenseCode": "",
+        "slected": "wgsq",
+        "numFMGB": "",
+        "numFMSQ":"0",
+        "numSYXX": "",
+        "numWGSQ": "",
+        "pageSize": "10",
+        "pageNow": "1",
+        }
+
+postdata2 = {
+        "showType": "1",
+        "strWord": "",
+        "numSortMethod": "4",
+        "strLicenseCode": "",
+        "slected": "wgsq",
+        "numFMGB": "",
+        "numFMSQ":"",
+        "numSYXX": "0",
+        "numWGSQ": "",
+        "pageSize": "10",
+        "pageNow": "1",
+        }
+postdata3 = {
+        "showType": "1",
+        "strWord": "",
+        "numSortMethod": "4",
+        "strLicenseCode": "",
+        "slected": "wgsq",
+        "numFMGB": "",
+        "numFMSQ":"",
+        "numSYXX": "",
+        "numWGSQ": "0",
+        "pageSize": "10",
+        "pageNow": "1",
+        }
+
+
+
+
+
+def dealstructure(link2):
+    link2 = re.sub('\s','',link2)
+    link2 = re.sub(r'\n', '', link2)
+    link2 = re.sub(r'\r', '', link2)
+    link2 = re.sub(r'【全部数据】', '', link2)
+    link2 = re.sub(r'全文', '', link2)
+    link2 = re.sub(r'全部', '', link2)
+    link2 = re.sub(r'授权公告号', ' 授权公告号', link2)
+    link2 = re.sub(r'授权公告日', ' 授权公告日', link2)
+    link2 = re.sub(r'申请号', ' 申请号', link2)
+    link2 = re.sub(r'申请日', ' 申请日', link2)
+    link2 = re.sub(r'专利权人', ' 专利权人', link2)
+    link2 = re.sub(r'发明人', ' 发明人', link2)
+    link2 = re.sub(r'地址', ' 地址', link2)
+    link2 = re.sub(r'分类号', ' 分类号', link2)
+    link2 = re.sub(r'专利代理机构', ' 专利代理机构', link2)
+    link2 = re.sub(r'代理人', ' 代理人', link2)
+    link2 = re.sub(r'对比文件', ' 对比文件', link2)
+    link2 = re.sub(r'摘要：', ' 摘要：', link2)
+    link2 = re.sub(r'【发明专利】', ' 【发明专利】', link2)
+    link2 = re.sub(r'申请公布号', ' 申请公布号', link2)
+    link2 = re.sub(r'申请公布日', ' 申请公布日', link2)
+    link2 = re.sub(r'申请人', ' 申请人', link2)
+    link2 = re.sub(r'【实用新型专利】', '', link2)
+    link2 = re.sub(r'【外观设计专利】', '', link2)
+    link2 = re.sub(r'【发明专利】', '', link2)
+    link2 = re.sub(r'【发明专利申请】', '', link2)
+    link2 = re.sub("\[发明授权\]", '发明授权 ', link2)
+    link2 = re.sub("\[实用新型\]", '实用新型 ', link2)
+    link2 = re.sub("\[外观设计\]", '外观设计 ', link2)
+    link2 = re.sub(r'事务数据', '', link2)
+    link2 = re.sub(r'简要说明：', ' 简要说明：', link2)
+    link2 = re.sub(r'设计人：', ' 设计人：', link2)
+    return link2
+
+def crawldata(company,information):
+    company = company
+    postdata = information
+    postdata["strWord"] = "申请（专利权）人,发明（设计）人,代理人+='%"+company+"' or 地址,名称,专利代理机构,摘要+='"+company+"'"
+    for i in range(1,2):
+     print(company+"第%s页"%i)
+     try:
+        postdata["pageNow"] = i
+        html = requests.post(url_login,data=postdata,headers=headers).text
+        selector = etree.HTML(html)
+        link1 = selector.xpath('//div[starts-with(@class,"cp_linr")]')
+        test=link1[0]
+        for each in link1:
+            link2 =each.xpath('string(.)')
+            link2=str(link2)
+            link2=dealstructure(link2)
+            link2 = company+" "+link2
+            print(link2)
+            result.append(link2)
+     except:
+        print("该公司所有记录已搜集完")
+        break
+
+data = xlrd.open_workbook("ex.xlsx")
+table = data.sheets()[0]   #0表示第一张表
+companylist = table.col_values(0)  #获取第一列中的所有值并保存为列表
+for each in companylist:
+    result = []
+    print("爬取"+each+"发明授权")
+    crawldata(each,postdata1)
+    print("爬取"+each+"实用新型")
+    crawldata(each,postdata2)
+    print("爬取"+each+"外观设计")
+    crawldata(each,postdata3)
+    f = open('wpq.txt','a')
+    for every in result:
+        f.write(every)
+        f.write("\n")
+    f.close()
+
+
