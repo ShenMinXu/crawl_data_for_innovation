@@ -1,25 +1,38 @@
+#说明，中国统计局，高级查询，提交申请人
 # -*- coding: utf-8 -*-
 import requests
 import re
 import xlrd
+import time
+import random
 from lxml import etree
 
 agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.112 Safari/537.36'
-
+#专利网站header
 headers = {
     "User-Agent": agent,
-    ''"Host": "epub.sipo.gov.cn",
+    "Host": "epub.sipo.gov.cn",
     "Origin": "http://epub.sipo.gov.cn",
-    "Referer": "http://epub.sipo.gov.cn/index.action"
+    "Referer": "http://epub.sipo.gov.cn/gjcx.jsp"
 }
+#主分类号header
+'''
+headers2 = {
+      "User-Agent": agent,
+      "Host": "www.soopat.com",
+      "Referer": "http://www.soopat.com/Home/Index"
+}
+'''
 
 url_login = 'http://epub.sipo.gov.cn/patentoutline.action'
+
+
 postdata1 = {
         "showType": "1",
         "strWord": "",
-        "numSortMethod": "4",
+        "numSortMethod": "",
         "strLicenseCode": "",
-        "slected": "wgsq",
+        "slected": "",
         "numFMGB": "",
         "numFMSQ":"0",
         "numSYXX": "",
@@ -31,9 +44,9 @@ postdata1 = {
 postdata2 = {
         "showType": "1",
         "strWord": "",
-        "numSortMethod": "4",
+        "numSortMethod": "",
         "strLicenseCode": "",
-        "slected": "wgsq",
+        "slected": "",
         "numFMGB": "",
         "numFMSQ":"",
         "numSYXX": "0",
@@ -44,9 +57,9 @@ postdata2 = {
 postdata3 = {
         "showType": "1",
         "strWord": "",
-        "numSortMethod": "4",
+        "numSortMethod": "",
         "strLicenseCode": "",
-        "slected": "wgsq",
+        "slected": "",
         "numFMGB": "",
         "numFMSQ":"",
         "numSYXX": "",
@@ -56,27 +69,23 @@ postdata3 = {
         }
 
 
-
-
-
 def dealstructure(link2):
+    link2 = re.sub(r'全部\r', '', link2)
     link2 = re.sub('\s','',link2)
     link2 = re.sub(r'\n', '', link2)
     link2 = re.sub(r'\r', '', link2)
     link2 = re.sub(r'【全部数据】', '', link2)
-    link2 = re.sub(r'全文', '', link2)
-    link2 = re.sub(r'全部', '', link2)
-    link2 = re.sub(r'授权公告号', ' 授权公告号', link2)
-    link2 = re.sub(r'授权公告日', ' 授权公告日', link2)
-    link2 = re.sub(r'申请号', ' 申请号', link2)
-    link2 = re.sub(r'申请日', ' 申请日', link2)
-    link2 = re.sub(r'专利权人', ' 专利权人', link2)
-    link2 = re.sub(r'发明人', ' 发明人', link2)
-    link2 = re.sub(r'地址', ' 地址', link2)
-    link2 = re.sub(r'分类号', ' 分类号', link2)
-    link2 = re.sub(r'专利代理机构', ' 专利代理机构', link2)
-    link2 = re.sub(r'代理人', ' 代理人', link2)
-    link2 = re.sub(r'对比文件', ' 对比文件', link2)
+    link2 = re.sub(r'授权公告号:', ' 授权公告号:', link2)
+    link2 = re.sub(r'授权公告日:', ' 授权公告日:', link2)
+    link2 = re.sub(r'申请号：', ' 申请号:', link2)
+    link2 = re.sub(r'申请日：', ' 申请日：', link2)
+    link2 = re.sub(r'专利权人:', ' 专利权人:', link2)
+    link2 = re.sub(r'发明人：', ' 发明人：', link2)
+    link2 = re.sub(r'地址：', ' 地址：', link2)
+    link2 = re.sub(r'分类号:', ' 分类号:', link2)
+    link2 = re.sub(r'专利代理机构:', ' 专利代理机构:', link2)
+    link2 = re.sub(r'代理人:', ' 代理人:', link2)
+    link2 = re.sub(r'对比文件:', ' 对比文件:', link2)
     link2 = re.sub(r'摘要：', ' 摘要：', link2)
     link2 = re.sub(r'【发明专利】', ' 【发明专利】', link2)
     link2 = re.sub(r'申请公布号', ' 申请公布号', link2)
@@ -92,34 +101,62 @@ def dealstructure(link2):
     link2 = re.sub(r'事务数据', '', link2)
     link2 = re.sub(r'简要说明：', ' 简要说明：', link2)
     link2 = re.sub(r'设计人：', ' 设计人：', link2)
+    link2 = re.sub(r'本国优先权：', ' 本国优先权：', link2)
     return link2
+'''
+def getmainclass(neirong):
+    num=re.findall(r'申请号：(.*?)\s申请日：.*?',neirong,)[0]
+    url = "http://www.soopat.com/Home/Result?SearchWord="+num+"&SYXX=Y&WGZL=Y&FMSQ=Y"
+    html = requests.get(url,headers=headers2).text
+    mainclass = re.findall(r'主分类号：<a href=.*?>(.*?)</a><br />',html,re.S)[0]
+    return mainclass
+'''
+def gettext(url,postdata,headers):
+    try:
+        html = requests.post(url,data=postdata,headers=headers,timeout=60).text
+        return html
+    except Exception as e:
+        print(e)
+        html = gettext(url,postdata,headers)
+        return html
+
+
+
+
 
 def crawldata(company,information):
     company = company
     postdata = information
-    postdata["strWord"] = "申请（专利权）人,发明（设计）人,代理人+='%"+company+"' or 地址,名称,专利代理机构,摘要+='"+company+"'"
-    for i in range(1,2):
-     print(company+"第%s页"%i)
-     try:
+    #postdata["strWord"] = "申请（专利权）人,发明（设计）人,代理人,优先权,本国优先权,分案原申请号,生物保藏,国际申请,国际公布+='%"+company+"%' or 地址,名称,专利代理机构,摘要+='"+company+"'"
+    postdata["strWord"] ="申请（专利权）人='%"+company+"%'"
+    for i in range(1,1000):
+        #设定最大爬取页数
+        print(company+"第%s页"%i)
         postdata["pageNow"] = i
-        html = requests.post(url_login,data=postdata,headers=headers).text
+        #html = requests.post(url_login,data=postdata,headers=headers).text
+        html = gettext(url_login,postdata,headers)
         selector = etree.HTML(html)
         link1 = selector.xpath('//div[starts-with(@class,"cp_linr")]')
-        test=link1[0]
-        for each in link1:
-            link2 =each.xpath('string(.)')
-            link2=str(link2)
-            link2=dealstructure(link2)
-            link2 = company+" "+link2
-            print(link2)
-            result.append(link2)
-     except:
-        print("该公司所有记录已搜集完")
-        break
+        if link1:
+            for each in link1:
+                link2 =each.xpath('string(.)')
+                link2=str(link2)
+                link2=dealstructure(link2)
+                link2 = company+" "+link2
+                link2 = str(link2)
+                print(link2)
+                #zhufenleihao = getmainclass(link2)  #获取主分类号.由于该网站反爬，要输验证码待定
+                #link2 = zhufenleihao + " "+link2
+                result.append(link2)
+                time.sleep(1)
+        else:
+            print("该项该公司已经抓取完毕")
+            time.sleep(1)
+            break
 
-data = xlrd.open_workbook("ex.xlsx")
-table = data.sheets()[0]   #0表示第一张表
-companylist = table.col_values(0)  #获取第一列中的所有值并保存为列表
+data = xlrd.open_workbook("560firm.xlsx")
+table = data.sheets()[0]   #0表示excel第一张sheet表
+companylist = table.col_values(0)  #获取excel第一列中的所有值并保存为列表
 for each in companylist:
     result = []
     print("爬取"+each+"发明授权")
@@ -128,10 +165,14 @@ for each in companylist:
     crawldata(each,postdata2)
     print("爬取"+each+"外观设计")
     crawldata(each,postdata3)
-    f = open('wpq.txt','a')
+    f = open('560firm.txt','a',encoding='utf-8')
     for every in result:
-        f.write(every)
-        f.write("\n")
+            f.write(every)
+            f.write("\n")
     f.close()
+    time.sleep(30)
+
+
+
 
 
