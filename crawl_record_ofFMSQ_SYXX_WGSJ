@@ -1,0 +1,122 @@
+# -*- coding: utf-8 -*-
+import requests
+import re
+import xlrd
+import time
+import random
+from lxml import etree
+
+
+agent = 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0'
+#专利网站header
+headers = {
+    "User-Agent": agent,
+    "Host": "epub.sipo.gov.cn",
+    "Origin": "http://epub.sipo.gov.cn",
+    "Referer": "http://epub.sipo.gov.cn/gjcx.jsp"
+}
+
+proxy = {
+        "http": "",
+}
+
+
+url_login = 'http://epub.sipo.gov.cn/patentoutline.action'
+
+postdata1 = {
+        "showType": "1",
+        "strWord": "",
+        "numSortMethod": "",
+        "strLicenseCode": "",
+        "slected": "",
+        "numFMGB": "",
+        "numFMSQ":"0",
+        "numSYXX": "0",
+        "numWGSQ": "0",
+        "pageSize": "3",
+        "pageNow": "1",
+        }
+
+def crawlproxy():
+    result = []
+    url = "http://www.xicidaili.com/nn/"
+    urltest = "http://httpbin.org/ip"
+    agent = 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0'
+    headers = {
+        "User-Agent": agent,
+    }
+    html = requests.get(url,headers=headers).text
+    selector = etree.HTML(html)
+    record1 = selector.xpath('//*[@id="ip_list"]/tr[starts-with(@class,"odd")]/td[2]')
+    record2 = selector.xpath('//*[@id="ip_list"]/tr[starts-with(@class,"odd")]/td[3]')
+    for i in range(0,len(record1)):
+        httpproxy = record1[i].xpath('string(.)')
+        port = record2[i].xpath('string(.)')
+        test = {"http":"http://"+httpproxy+":"+port}
+        try:
+            resp = requests.get(urltest, proxies=test,headers=headers,timeout=5).status_code
+            print(httpproxy+":"+port)
+            result.append(test)
+        except:
+            time.sleep(1)
+            print(httpproxy+":"+port+"无效")
+    return result
+
+
+
+def gettext(url,postdata,headers):
+    try:
+        html = requests.post(url,data=postdata,headers=headers,timeout=300).text
+        return html
+        time.sleep(1)
+    except Exception as e:
+        print(e)
+        time.sleep(1)
+        html = gettext(url, postdata, headers)
+        return html
+        time.sleep(1)
+def crawl(company):
+     print("爬取"+company+"各类记录数")
+     postdata = postdata1
+     postdata["strWord"] ="申请（专利权）人='%"+company+"%'"
+     html = gettext(url_login,postdata,headers)
+     pattern0 =r'错误页面'
+     pattern1 =r'发明授权：(.*?)件'
+     pattern2 =r'实用新型：(.*?)件'
+     pattern3 =r'外观设计：(.*?)件'
+     record0 = re.search(pattern0,html,re.S)
+     if record0:
+         result = company +" 错误页面"
+     else:
+         print(html)
+         record1 = re.findall(pattern1,html,re.S)
+         record2 = re.findall(pattern2,html,re.S)
+         record3 = re.findall(pattern3,html,re.S)
+         result = company+" "+record1[0]+" "+record2[0]+" "+record3[0]
+     f = open('fuck.txt','a',encoding='utf-8')
+     f.write(result)
+     f.write("\n")
+     f.close()
+     print(result)
+
+data = xlrd.open_workbook("firm.xlsx")
+table = data.sheets()[0]   #0表示excel第一张sheet表
+companylist = table.col_values(0)  #获取excel第一列中的所有值并保存为列表
+#proxies = crawlproxy()
+txtpath=r"proxy.txt"
+fp=open(txtpath)
+proxies=[]
+for lines in fp.readlines():
+    lines=lines.replace("\n","")
+    proxies.append(lines)
+fp.close()
+
+
+
+
+for i in range(0,len(companylist)):
+    crawl(companylist[i])
+    time.sleep(5)
+
+
+
