@@ -1,3 +1,4 @@
+#自动爬取代理，自动使用代理
 # -*- coding: utf-8 -*-
 import requests
 import re
@@ -38,7 +39,8 @@ postdata1 = {
         }
 
 def crawlproxy():
-    result = []
+    global proxies
+    proxies = []
     url = "http://www.xicidaili.com/nn/"
     urltest = "http://httpbin.org/ip"
     agent = 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0'
@@ -49,37 +51,53 @@ def crawlproxy():
     selector = etree.HTML(html)
     record1 = selector.xpath('//*[@id="ip_list"]/tr[starts-with(@class,"odd")]/td[2]')
     record2 = selector.xpath('//*[@id="ip_list"]/tr[starts-with(@class,"odd")]/td[3]')
-    for i in range(0,len(record1)):
+    for i in range(0,len(record1)):  #注意修改
         httpproxy = record1[i].xpath('string(.)')
         port = record2[i].xpath('string(.)')
         test = {"http":"http://"+httpproxy+":"+port}
+        print("http://"+httpproxy+":"+port)
+        proxies.append(test)
+    return proxies
+'''
         try:
             resp = requests.get(urltest, proxies=test,headers=headers,timeout=5).status_code
             print(httpproxy+":"+port)
-            result.append(test)
+            proxies.append(test)
         except:
             time.sleep(1)
             print(httpproxy+":"+port+"无效")
-    return result
+'''
 
 
 
-def gettext(url,postdata,headers):
+def gettext(url,postdata,headers,proxies):
+    if proxies:
+        proxy = random.choice(proxies)
+    else:
+        print("代理ip已用完")
+        proxies = crawlproxy()
+        proxy =random.choice(proxies)
     try:
-        html = requests.post(url,data=postdata,headers=headers,timeout=300).text
+        html = requests.post(url,data=postdata,headers=headers,timeout=60,proxies=proxy).text
+        pattern0 =r'错误页面'
+        pattern1 =r'发明授权：(.*?)件'
+        record0 = re.search(pattern0,html,re.S)
+        record1 = re.search(pattern1,html,re.S)
+        if (not record1) and (not record0):   #判断页面是否正常
+            print(record0[0])
         return html
         time.sleep(1)
     except Exception as e:
         print(e)
         time.sleep(1)
-        html = gettext(url, postdata, headers)
+        proxies.remove(proxy)
+        html = gettext(url, postdata, headers,proxies)
         return html
-        time.sleep(1)
 def crawl(company):
      print("爬取"+company+"各类记录数")
      postdata = postdata1
      postdata["strWord"] ="申请（专利权）人='%"+company+"%'"
-     html = gettext(url_login,postdata,headers)
+     html = gettext(url_login,postdata,headers,proxies)
      pattern0 =r'错误页面'
      pattern1 =r'发明授权：(.*?)件'
      pattern2 =r'实用新型：(.*?)件'
@@ -88,35 +106,24 @@ def crawl(company):
      if record0:
          result = company +" 错误页面"
      else:
-         print(html)
          record1 = re.findall(pattern1,html,re.S)
-         record2 = re.findall(pattern2,html,re.S)
-         record3 = re.findall(pattern3,html,re.S)
-         result = company+" "+record1[0]+" "+record2[0]+" "+record3[0]
+         if record1:
+            record2 = re.findall(pattern2,html,re.S)
+            record3 = re.findall(pattern3,html,re.S)
+            result = company+" "+record1[0]+" "+record2[0]+" "+record3[0]
+         else:
+             result = html
      f = open('fuck.txt','a',encoding='utf-8')
      f.write(result)
      f.write("\n")
      f.close()
      print(result)
 
-data = xlrd.open_workbook("firm.xlsx")
+data = xlrd.open_workbook("firmtest.xlsx")
 table = data.sheets()[0]   #0表示excel第一张sheet表
 companylist = table.col_values(0)  #获取excel第一列中的所有值并保存为列表
-#proxies = crawlproxy()
-txtpath=r"proxy.txt"
-fp=open(txtpath)
-proxies=[]
-for lines in fp.readlines():
-    lines=lines.replace("\n","")
-    proxies.append(lines)
-fp.close()
-
-
-
-
-for i in range(0,len(companylist)):
-    crawl(companylist[i])
-    time.sleep(5)
-
+proxies = crawlproxy()
+for each in companylist:
+    crawl(each)
 
 
